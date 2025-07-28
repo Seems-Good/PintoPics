@@ -8,6 +8,6 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-COPY /pinto-pics-discord-bot/main.py /app/
+COPY main.py /app/
 
 CMD ["python3", "/app/main.py"]
