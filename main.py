@@ -35,9 +35,11 @@ emote_pintocool = '<:pintocool:1391935318797844500>'
 # Ellie globals
 ellie_limit = 20
 ellie_index = 0
+emote_ellie = '<:ellie:1399190760259194951>'
 # Murph globals
 murph_limit = 20
 murph_index = 0
+emote_murph = '<:murph:1399190806018916403>'
 
 # Event happens after we succesfully auth with discord.api. 
 # lets us know the username(bot's username) of token we input by printing to stdout.
@@ -88,7 +90,7 @@ async def on_message(message):
         if url:
             print(f'{fmtTime} - [ Source User: {whoSent} ] - [ Ellie Found ] - [ Calling {url} ]')
             await message.channel.send(url, delete_after=60)
-            await message.channel.send(f'💖 Ellie Mentioned 💖', delete_after=60)
+            await message.channel.send(f'{emote_ellie} Ellie Mentioned {emote_ellie}', delete_after=60)
         else:
             print(f'{fmtTime} - [ Source User: {whoSent} ] - [ Ellie Media Not Found for index {ellie_index:04} ]')
 
@@ -99,7 +101,7 @@ async def on_message(message):
         if url:
             print(f'{fmtTime} - [ Source User: {whoSent} ] - [ Murph Found ] - [ Calling {url} ]')
             await message.channel.send(url, delete_after=60)
-            await message.channel.send(f'💖 Murph Mentioned 💖', delete_after=60)
+            await message.channel.send(f'{emote_murph} Murph Mentioned {emote_murph}', delete_after=60)
         else:
             print(f'{fmtTime} - [ Source User: {whoSent} ] - [ Murph Media Not Found for index {murph_index:04} ]')
 
