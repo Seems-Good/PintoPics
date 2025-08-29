@@ -5,6 +5,7 @@ RUN apk add --no-cache \
   py3-pip \
   && pip install --break-system-packages discord.py \
   && pip install --break-system-packages aiohttp \
+  && pip install --break-system-packages tzdata \
   && pip install --break-system-packages boto3
 
 
