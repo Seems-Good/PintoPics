@@ -17,7 +17,6 @@ API_ENDPOINT = "https://r2-api.seemsgood.org/content"
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
 # ---- R2 CLIENT ----
 s3 = boto3.client(
     "s3",
@@ -25,15 +24,15 @@ s3 = boto3.client(
     aws_access_key_id=R2_ACCESS_KEY,
     aws_secret_access_key=R2_SECRET_KEY,
 )
-
 # ---- PET STATE ----
+DEFAULT_EMOTE = "🐾"
 pets = {
     "pinto": {"index": 0, "limit": 0, "emote": "<:pintocool:1391935318797844500>"},
     "ellie": {"index": 0, "limit": 0, "emote": "<:ellie:1399190760259194951>"},
     "murph": {"index": 0, "limit": 0, "emote": "<:murph:1399190806018916403>"},
 }
 
-# ---- STATE AND MIME HANDLERS ----
+# ---- R2 STORAGE ----
 async def find_existing_url(base_url, name, index):
     """Check if file exists at URL with known extensions."""
     extensions = ["jpg", "png", "jpeg", "gif", "mp4", "mov"]
@@ -73,19 +72,18 @@ async def populate_pet_limits():
     print("Pet limits updated:", {k: v["limit"] for k, v in pets.items()})
 
 # ---- SLASH COMMAND ----
-@bot.tree.command(name="add", description="Upload an image/gif/video of a pet for PintoPics bot to use")
-@app_commands.describe(name="Pet name (pinto, ellie, murph)", media="The file to upload (jpg/png/gif/mp4/mov)")
+@bot.tree.command(name="add", description="Upload a  pet to use with PintoPics (images, gifs, and videos supported)")
+@app_commands.describe(name="Pet name", media="The image/video to upload (jpg/png/gif/mp4/mov/mkv)")
 async def add(interaction: discord.Interaction, name: str, media: discord.Attachment):
     name = name.lower()
     if name not in pets:
-        await interaction.response.send_message("❌ Unknown pet name.", ephemeral=True)
-        return
+        pets[name] = {"index": 0, "limit": 0, "emote": DEFAULT_EMOTE}
 
     await interaction.response.defer(ephemeral=True)
 
     ext = os.path.splitext(media.filename)[1].lower()
-    allowed_exts = {".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov"}
-    allowed_mimes = {"video/mp4", "video/quicktime"}  # mov
+    allowed_exts = {".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov", ".mkv"}
+    allowed_mimes = {"video/mp4", "video/quicktime"}  
     is_allowed = media.content_type.startswith("image/") or media.content_type in allowed_mimes or ext in allowed_exts
 
     if not is_allowed:
@@ -104,7 +102,7 @@ async def add(interaction: discord.Interaction, name: str, media: discord.Attach
         ContentType=media.content_type or "application/octet-stream",
     )
 
-    # Update pet limit after upload
+    # Update pet limits after upload
     await populate_pet_limits()
 
     await interaction.followup.send(f"✅ Uploaded `{key}` to R2 successfully!", ephemeral=True)
@@ -119,24 +117,31 @@ async def on_message(message: discord.Message):
     whoSent = message.author.display_name
     timestampNow = datetime.now().strftime("[ %I:%M:%S %p - %m-%d-%Y ]")
 
-    for pet_name, data in pets.items():
-        if pet_name in content_lower:
-            if data["limit"] == 0:
-                print(f"{timestampNow} - [ User: {whoSent} ] - [ {pet_name} No media uploaded yet ]")
-                continue
+    for word in content_lower.split():
+        pet_name = word.strip()
+        if not pet_name:
+            continue
 
-            # rotate index modulo limit
-            data["index"] = (data["index"] % data["limit"]) + 1
-            url = await find_existing_url(API_ENDPOINT, pet_name, data["index"])
-            if url:
-                print(f"{timestampNow} - [ User: {whoSent} ] - [ {pet_name} Found ] - [ {url} ]")
-                await message.channel.send(url, delete_after=60)
-                await message.channel.send(
-                    f'{data["emote"]} {pet_name.capitalize()} Mentioned {data["emote"]}',
-                    delete_after=60,
-                )
-            else:
-                print(f"{timestampNow} - [ User: {whoSent} ] - [ {pet_name} Media Not Found index {data['index']:04} ]")
+        if pet_name not in pets:
+            # Add new pet dynamically
+            pets[pet_name] = {"index": 0, "limit": 0, "emote": DEFAULT_EMOTE}
+            await populate_pet_limits()
+
+        data = pets[pet_name]
+        if data["limit"] == 0:
+            print(f"{timestampNow} - [ User: {whoSent} ] - [ {pet_name} No media uploaded yet ]")
+            continue
+
+        # Rotate index
+        data["index"] = (data["index"] % data["limit"]) + 1
+        url = await find_existing_url(API_ENDPOINT, pet_name, data["index"])
+        if url:
+            print(f"{timestampNow} - [ User: {whoSent} ] - [ {pet_name} Found ] - [ {url} ]")
+            await message.channel.send(url, delete_after=60)
+            await message.channel.send(
+                f'{data["emote"]} {pet_name.capitalize()} Mentioned {data["emote"]}',
+                delete_after=60,
+            )
 
 # ---- STARTUP ----
 @bot.event
