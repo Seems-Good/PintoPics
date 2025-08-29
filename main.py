@@ -183,9 +183,9 @@ async def addemote(interaction: discord.Interaction, pet_name: str, emoji: str):
     # If pet doesn't exist, create it
     if pet_name not in pets:
         pets[pet_name] = {
-            "emote": emoji,
+            "index": 0,
             "limit": 0,
-            "index": 0
+            "emote": emoji
         }
     else:
         # overwrite directly
