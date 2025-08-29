@@ -141,12 +141,12 @@ async def add(interaction: discord.Interaction, name: str, media: discord.Attach
         save_pets_to_r2() 
     await interaction.response.defer(ephemeral=True)
     ext = os.path.splitext(media.filename)[1].lower()
-    allowed_exts = {".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov"}
+    allowed_exts = {".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov", ".mkv"}
     allowed_mimes = {"video/mp4", "video/quicktime"}
     is_allowed = media.content_type.startswith("image/") or media.content_type in allowed_mimes or ext in allowed_exts
     if not is_allowed:
         await interaction.followup.send(
-            "❌ Invalid file type. Allowed: jpg, png, gif, mp4, mov", ephemeral=True
+            "❌ Invalid file type. Allowed: jpg, png, gif, mp4, mov, .mkv", ephemeral=True
         )
         return
     file_bytes = await media.read()
