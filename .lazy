@@ -1,0 +1,5 @@
+NAME="pintopics"
+IMAGE_NAME="alpine"
+IMAGE_TAG="latest"
+DOCKERFILE="Dockerfile"
+ENV_FILE=".env"

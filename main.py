@@ -7,6 +7,8 @@ from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from discord import ui, TextStyle
+
 
 # ---- CONFIG ----
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") 
@@ -62,11 +64,11 @@ def load_pets_from_r2():
         pets = json.loads(pets_bytes)
     except s3.exceptions.NoSuchKey:
         # Default pets
-        pets = {
-            "pinto": {"emote": "<:pintocool:1391935318797844500>", "limit": 0, "index": 0},
-            "ellie": {"emote": "<:ellie:1399190760259194951>", "limit": 0, "index": 0},
-            "murph": {"emote": "<:murph:1399190806018916403>", "limit": 0, "index": 0},
-        }
+        # pets = {
+        #     "pinto": {"emote": "<:pintocool:1391935318797844500>", "limit": 0, "index": 0},
+        #     "ellie": {"emote": "<:ellie:1399190760259194951>", "limit": 0, "index": 0},
+        #     "murph": {"emote": "<:murph:1399190806018916403>", "limit": 0, "index": 0},
+        # }
         save_pets_to_r2()
 
 def load_blacklist_from_r2():
@@ -159,6 +161,49 @@ async def add(interaction: discord.Interaction, name: str, media: discord.Attach
     )
     await populate_pet_limits()
     await interaction.followup.send(f"✅ Uploaded `{key}` to R2 successfully!", ephemeral=True)
+# Context menu modal
+class PetNameModal(ui.Modal, title="Add Pet Image"):
+    pet_name = ui.TextInput(label="Pet Name", placeholder="Enter the pet name")
+
+    def __init__(self, attachment, interaction_message, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attachment = attachment
+        self.interaction_message = interaction_message
+
+    async def on_submit(self, interaction: discord.Interaction):
+        pet_name = self.pet_name.value.lower()
+        ext = os.path.splitext(self.attachment.filename)[1].lower()
+        allowed_exts = {".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov", ".mkv"}
+        if ext not in allowed_exts:
+            await interaction.response.send_message("❌ Attached file type is not supported.", ephemeral=True)
+            return
+
+        # Download the attachment
+        file_bytes = await self.attachment.read()
+
+        # Add or create pet entry if new
+        if pet_name not in pets:
+            pets[pet_name] = {"index": 0, "limit": 0, "emote": DEFAULT_EMOTE}
+            save_pets_to_r2()
+
+        # Upload to R2 using existing logic
+        key = get_next_index(pet_name, ext)
+        s3.put_object(
+            Bucket=R2_BUCKET,
+            Key=key,
+            Body=file_bytes,
+            ContentType=self.attachment.content_type or "application/octet-stream",
+        )
+        await populate_pet_limits()
+        await interaction.response.send_message(f"✅ Image uploaded as `{key}` successfully!", ephemeral=True)
+@bot.tree.context_menu(name="Add Image")
+async def add_image_context(interaction: discord.Interaction, message: discord.Message):
+    if not message.attachments:
+        await interaction.response.send_message("❌ No image found in the selected message.", ephemeral=True)
+        return
+
+    attachment = message.attachments[0]
+    await interaction.response.send_modal(PetNameModal(attachment, message))
 
 # ---- /listpets - list all known pets in pets.json. ----
 @bot.tree.command(name="listpets", description="List all registered pets and their emoji")
@@ -239,13 +284,16 @@ async def on_message(message: discord.Message):
     for pet_name, data in pets.items():
         if pet_name in content_lower:
             if data["limit"] == 0:
-                print(f"{get_timestamp()} - [ User: {whoSent} ] - [ {pet_name} No media uploaded yet ]")
+                # edge case if images or limit is removed from s3.
+                print(f'{get_timestamp()} - [ User: {whoSent} ] - [ {pet_name} No media uploaded yet ]')
                 continue
             # Rotate index
             data["index"] = (data["index"] % data["limit"]) + 1
             url = await find_existing_url(API_ENDPOINT, pet_name, data["index"])
+            save_pets_to_r2() # write index to r2/s3 
             if url:
-                print(f"{get_timestamp()} - [ User: {whoSent} ] - [ {pet_name} Found ] - [ {url} ]")
+                print(f'{get_timestamp()} - [ User: {whoSent} ] - [ {pet_name} Found ] - [ {url} ]')
+                print(f'{get_timestamp()} - [ {pet_name} Index:{data["index"]} ]')
                 await message.channel.send(url, delete_after=60)
                 await message.channel.send(
                     f'{data["emote"]} {pet_name.capitalize()} Mentioned {data["emote"]}',
